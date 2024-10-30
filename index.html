@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard de Votação - Análise Comparativa</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.12.2/Recharts.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f3f4f6;
+        }
+        .dashboard-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .metric-card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .chart-container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .details-container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <!-- Dados em formato CSV -->
+    <script id="csvData" type="text/csv">
+nr_zona,qt_votos_nom_validos_helton,nm_candidato,qt_votos_nom_validos_mais_votado
+26,330,WILSON MELO JUNIOR,3071
+27,206,LEONARDO JOSÉ RODRIGUES MARTINS,3389
+28,105,MARCOS ANTÔNIO CRISPIM,6995
+29,187,JOSE DE JESUS FERREIRA,7841
+30,189,GLAUTON SANTIAGO FÉLIX DE JESUS,4037
+31,301,WAGNER MARIANO JUNIOR,4087
+32,263,GIOVANNI DE CAMPOS VIANA,3029
+33,601,FERNANDA ELISA PEREIRA ALTOÉ,3476
+34,896,FERNANDA ELISA PEREIRA ALTOÉ,6390
+35,373,FERNANDA ELISA PEREIRA ALTOÉ,3865
+36,2866,JULIANO LOPES LOBATO,3569
+37,176,GIVANILDO RODRIGUES,4429
+38,128,ROBERTO ELBO GONÇALVES,5485
+39,190,ELIZETE LOIDE GONÇALVES TAVARES,5866
+331,98,EDMAR MARTINS CABRAL DA CRUZ,7279
+332,685,BRAULIO ALVES SILVA LARA,4252
+333,200,HÉLIO MEDEIROS CORREA,6194
+334,219,WAGNER DE JESUS FERREIRA,4395
+    </script>
+
+    <script>
+        const { useState, useEffect } = React;
+        const { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } = Recharts;
+
+        function DashboardVotos() {
+            const [data, setData] = useState([]);
+            const [selectedZona, setSelectedZona] = useState(null);
+            const [metricasGerais, setMetricasGerais] = useState({});
+
+            useEffect(() => {
+                const csvContent = document.getElementById('csvData').textContent;
+                const result = Papa.parse(csvContent, {
+                    header: true,
+                    dynamicTyping: true,
+                    skipEmptyLines: true
+                });
+
+                const processedData = result.data.map(row => ({
+                    zona: `Zona ${row.nr_zona}`,
+                    nr_zona: row.nr_zona,
+                    votosHelton: row.qt_votos_nom_validos_helton,
+                    votosMaisVotado: row.qt_votos_nom_validos_mais_votado,
+                    candidatoMaisVotado: row.nm_candidato,
+                    diferenca: row.qt_votos_nom_validos_mais_votado - row.qt_votos_nom_validos_helton,
+                    percentualHelton: (row.qt_votos_nom_validos_helton / (row.qt_votos_nom_validos_helton + row.qt_votos_nom_validos_mais_votado) * 100).toFixed(2)
+                }));
+
+                const metricas = {
+                    totalVotosHelton: processedData.reduce((acc, cur) => acc + cur.votosHelton, 0),
+                    melhorZona: processedData.reduce((acc, cur) => cur.votosHelton > acc.votosHelton ? cur : acc),
+                    piorZona: processedData.reduce((acc, cur) => cur.votosHelton < acc.votosHelton ? cur : acc),
+                    menorDiferenca: processedData.reduce((acc, cur) => cur.diferenca < acc.diferenca ? cur : acc),
+                    maiorDiferenca: processedData.reduce((acc, cur) => cur.diferenca > acc.diferenca ? cur : acc),
+                };
+
+                setData(processedData);
+                setMetricasGerais(metricas);
+                setSelectedZona(processedData[0]);
+            }, []);
+
+            const COLORS = ['#ef4444', '#3b82f6'];
+
+            const CustomTooltip = ({ active, payload, label }) => {
+                if (active && payload && payload.length) {
+                    const record = payload[0].payload;
+                    return (
+                        <div className="bg-white p-4 border rounded shadow-lg">
+                            <h3 className="font-bold text-lg mb-2">{record.zona}</h3>
+                            <div>
+                                <p className="text-red-600">
+                                    Helton: {record.votosHelton?.toLocaleString()} votos ({record.percentualHelton}%)
+                                </p>
+                                <p className="text-blue-600">
+                                    {record.candidatoMaisVotado}: {record.votosMaisVotado?.toLocaleString()} votos
+                                </p>
+                                <p className="font-semibold mt-2">
+                                    Diferença: {record.diferenca?.toLocaleString()} votos
+                                </p>
+                            </div>
+                        </div>
+                    );
+                }
+                return null;
+            };
+
+            return (
+                <div className="dashboard-container">
+                    <h1 className="text-3xl font-bold mb-6 text-center">Dashboard de Votação - Análise Comparativa</h1>
+                    
+                    <div className="metrics-grid">
+                        <div className="metric-card">
+                            <h3 className="text-lg font-bold mb-2">Melhor Desempenho</h3>
+                            <p>Zona {metricasGerais.melhorZona?.nr_zona}</p>
+                            <p className="text-red-600 font-bold">
+                                {metricasGerais.melhorZona?.votosHelton?.toLocaleString()} votos
+                            </p>
+                        </div>
+                        <div className="metric-card">
+                            <h3 className="text-lg font-bold mb-2">Total de Votos</h3>
+                            <p className="text-red-600 font-bold">
+                                {metricasGerais.totalVotosHelton?.toLocaleString()} votos
+                            </p>
+                        </div>
+                        <div className="metric-card">
+                            <h3 className="text-lg font-bold mb-2">Menor Diferença</h3>
+                            <p>Zona {metricasGerais.menorDiferenca?.nr_zona}</p>
+                            <p className="font-bold">
+                                {metricasGerais.menorDiferenca?.diferenca?.toLocaleString()} votos
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="chart-container" style={{ height: '500px' }}>
+                        <ResponsiveContainer>
+                            <BarChart
+                                data={data}
+                                margin={{ top: 20, right: 30, left: 40, bottom: 100 }}
+                                onClick={(data) => data && setSelectedZona(data.activePayload?.[0]?.payload)}
+                            >
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis
+                                    dataKey="zona"
+                                    interval={0}
+                                    angle={-45}
+                                    textAnchor="end"
+                                    height={100}
+                                />
+                                <YAxis />
+                                <Tooltip content={<CustomTooltip />} />
+                                <Legend />
+                                <Bar 
+                                    dataKey="votosHelton" 
+                                    fill="#ef4444" 
+                                    name="Votos Helton"
+                                />
+                                <Bar 
+                                    dataKey="votosMaisVotado" 
+                                    fill="#3b82f6" 
+                                    name="Candidato Mais Votado"
+                                />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+
+                    {selectedZona && (
+                        <div className="details-container">
+                            <h3 className="text-lg font-bold mb-4">Detalhes da {selectedZona.zona}</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <h4 className="font-bold mb-2">Informações</h4>
+                                    <ul className="space-y-2">
+                                        <li>Votos Helton: <span className="text-red-600 font-bold">
+                                            {selectedZona.votosHelton?.toLocaleString()}
+                                        </span></li>
+                                        <li>Candidato mais votado: <span className="font-bold">
+                                            {selectedZona.candidatoMaisVotado}
+                                        </span></li>
+                                        <li>Votos do mais votado: <span className="text-blue-600 font-bold">
+                                            {selectedZona.votosMaisVotado?.toLocaleString()}
+                                        </span></li>
+                                        <li>Diferença: <span className="font-bold">
+                                            {selectedZona.diferenca?.toLocaleString()}
+                                        </span></li>
+                                        <li>Percentual Helton: <span className="font-bold">
+                                            {selectedZona.percentualHelton}%
+                                        </span></li>
+                                    </ul>
+                                </div>
+                                <div style={{ height: '300px' }}>
+                                    <ResponsiveContainer>
+                                        <PieChart>
+                                            <Pie
+                                                data={[
+                                                    { name: 'Helton', value: selectedZona.votosHelton },
+                                                    { name: 'Mais Votado', value: selectedZona.votosMaisVotado }
+                                                ]}
+                                                cx="50%"
+                                                cy="50%"
+                                                innerRadius={60}
+                                                outerRadius={80}
+                                                paddingAngle={5}
+                                                dataKey="value"
+                                            >
+                                                {COLORS.map((color, index) => (
+                                                    <Cell key={`cell-${index}`} fill={color} />
+                                                ))}
+                                            </Pie>
+                                            <Tooltip />
+                                            <Legend />
+                                        </PieChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // Renderiza o aplicativo
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(React.createElement(DashboardVotos));
+    </script>
+</body>
+</html>
